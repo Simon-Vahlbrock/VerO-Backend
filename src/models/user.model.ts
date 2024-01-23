@@ -7,7 +7,6 @@ class User extends Model {
     public salt!: string;
     public firstName!: string;
     public lastName!: string;
-    public refreshToken?: string;
 }
 
 User.init(
@@ -32,10 +31,6 @@ User.init(
         lastName: {
             type: DataTypes.STRING(50),
             allowNull: false,
-        },
-        refreshToken: {
-            type: DataTypes.STRING,
-            allowNull: true,
         },
     },
     {

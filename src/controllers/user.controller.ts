@@ -1,4 +1,6 @@
 import { Request, Response } from 'express';
+import { v4 as uuidv4 } from 'uuid';
+import RefreshToken from '../models/refreshToken.model';
 import User from '../models/user.model';
 import bcrypt from 'bcrypt';
 import jwt from 'jsonwebtoken';
@@ -23,21 +25,13 @@ class UserController {
             const salt = await bcrypt.genSalt(saltRounds);
             const hashedPassword = await bcrypt.hash(password, salt);
 
-            // Generate a refresh token
-            const refreshToken = jwt.sign({
-                userName
-            }, process.env.JWT_REFRESH_SECRET!, {
-                expiresIn: '7d',
-            });
-
             // Create the user
             await User.create({
                 userName,
                 password: hashedPassword,
                 salt,
                 firstName,
-                lastName,
-                refreshToken
+                lastName
             });
 
             res.status(201).json({
@@ -68,10 +62,19 @@ class UserController {
                 return res.status(401).json({ error: 'Invalid username or password' });
             }
 
+            const refreshTokenId = uuidv4();
+
+            // Save the refresh token ID to the new table
+            await RefreshToken.create({
+                userName,
+                refreshTokenId,
+            });
+
             // Generate a refresh token
             const refreshToken = jwt.sign(
                 {
-                    userName
+                    userName,
+                    refreshTokenId,
                 },
                 process.env.JWT_REFRESH_SECRET!,
                 { expiresIn: '7d' }
@@ -102,22 +105,42 @@ class UserController {
             const { refreshToken } = req.body;
 
             // Verify the refresh token
-            const decoded = jwt.verify(refreshToken, process.env.JWT_REFRESH_SECRET!) as { userName: string };
+            const decoded = jwt.verify(refreshToken, process.env.JWT_REFRESH_SECRET!) as {
+                userName: string,
+                refreshTokenId: string
+            };
 
             // Find the user by username
             const user = await User.findOne({ where: { userName: decoded.userName } });
 
-            if (!user || user.refreshToken !== refreshToken) {
+            // Find the refresh token by username and refresh token ID
+            const storedRefreshToken = await RefreshToken.findOne({
+                where: {
+                    userName: decoded.userName,
+                    refreshTokenId: decoded.refreshTokenId
+                }
+            });
+
+            if (!user || !storedRefreshToken) {
                 return res.status(401).json({ error: 'Invalid refresh token' });
             }
 
+            const newRefreshTokenId = uuidv4();
+
+            // Remove refresh-token from the database
+            await storedRefreshToken.destroy();
+
+            // Add new refresh token to the database
+            await RefreshToken.create({
+                userName: decoded.userName,
+                refreshTokenId: newRefreshTokenId
+            });
+
             // Issue a new refresh token
             const newRefreshToken = jwt.sign({
-                userName: decoded.userName
+                userName: decoded.userName,
+                refreshTokenId: newRefreshTokenId
             }, process.env.JWT_REFRESH_SECRET!, { expiresIn: '7d' });
-
-            // Save the new refresh token to the user model
-            await user.update({ refreshToken: newRefreshToken });
 
             // Issue a new access token
             const newAccessToken = jwt.sign({
@@ -186,17 +209,28 @@ class UserController {
             const { refreshToken } = req.body;
 
             // Verify the refresh token
-            const decoded = jwt.verify(refreshToken, process.env.JWT_REFRESH_SECRET!) as { userName: string };
+            const decoded = jwt.verify(refreshToken, process.env.JWT_REFRESH_SECRET!) as {
+                userName: string,
+                refreshTokenId: string
+            };
 
             // Find the user by username
             const user = await User.findOne({ where: { userName: decoded.userName } });
 
-            if (!user || user.refreshToken !== refreshToken) {
+            // Find the refresh token by username and refresh token ID
+            const storedRefreshToken = await RefreshToken.findOne({
+                where: {
+                    userName: decoded.userName,
+                    refreshTokenId: decoded.refreshTokenId
+                }
+            });
+
+            if (!user || !storedRefreshToken) {
                 return res.status(401).json({ error: 'Invalid refresh token' });
             }
 
-            // Remove the refresh token from the user model
-            await user.update({ refreshToken: null });
+            // Remove refresh token from the database
+            await storedRefreshToken.destroy();
 
             res.json({ message: 'Logout successful' });
         } catch (error) {
