@@ -1,20 +1,18 @@
-// src/models/user.model.ts
-
 import { DataTypes, Model } from 'sequelize';
 import sequelize from '../config/sequelize';
 
 class User extends Model {
-    public username!: string;
+    public userName!: string;
     public password!: string;
     public salt!: string;
-    public firstname!: string;
-    public lastname!: string;
+    public firstName!: string;
+    public lastName!: string;
     public refreshToken?: string;
 }
 
 User.init(
     {
-        username: {
+        userName: {
             type: DataTypes.STRING(50),
             primaryKey: true,
             allowNull: false,
@@ -27,11 +25,11 @@ User.init(
             type: DataTypes.STRING,
             allowNull: false,
         },
-        firstname: {
+        firstName: {
             type: DataTypes.STRING(50),
             allowNull: false,
         },
-        lastname: {
+        lastName: {
             type: DataTypes.STRING(50),
             allowNull: false,
         },
