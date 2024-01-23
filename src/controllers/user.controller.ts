@@ -1,7 +1,7 @@
 import { Request, Response } from 'express';
 import { v4 as uuidv4 } from 'uuid';
 import RefreshToken from '../models/refreshToken.model';
-import User from '../models/user.model';
+import User, { Status } from '../models/user.model';
 import bcrypt from 'bcrypt';
 import jwt from 'jsonwebtoken';
 import dotenv from 'dotenv';
@@ -11,7 +11,21 @@ dotenv.config();
 class UserController {
     static async register(req: Request, res: Response) {
         try {
-            const { userName, password, firstName, lastName } = req.body;
+            const {
+                userName,
+                password,
+                firstName,
+                lastName,
+                address,
+                city,
+                zipCode,
+                email,
+                phoneNumber,
+                birthDate,
+                status,
+                gender,
+                role
+            } = req.body;
 
             // Check if the username already exists
             const existingUser = await User.findOne({ where: { userName } });
@@ -31,7 +45,16 @@ class UserController {
                 password: hashedPassword,
                 salt,
                 firstName,
-                lastName
+                lastName,
+                address,
+                city,
+                zipCode,
+                email,
+                phoneNumber,
+                birthDate,
+                status,
+                gender,
+                role
             });
 
             res.status(201).json({
@@ -51,7 +74,7 @@ class UserController {
             // Find the user by username
             const user = await User.findOne({ where: { userName } });
 
-            if (!user) {
+            if (!user || user.status === Status.Left) {
                 return res.status(401).json({ error: 'Invalid username or password' });
             }
 
@@ -121,7 +144,7 @@ class UserController {
                 }
             });
 
-            if (!user || !storedRefreshToken) {
+            if (!user || !storedRefreshToken || user.status === Status.Left) {
                 return res.status(401).json({ error: 'Invalid refresh token' });
             }
 
