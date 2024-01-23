@@ -261,6 +261,25 @@ class UserController {
             res.status(401).json({ error: 'Invalid refresh token' });
         }
     }
+
+    static async getAllUsers(req: Request, res: Response) {
+        try {
+            const users = await User.findAll();
+
+            // filter out the password and salt
+            const filteredUsers = users.map(user => {
+                const { password, salt, ...rest } = user.toJSON();
+
+                return rest;
+            });
+
+            res.json(filteredUsers);
+        } catch (error) {
+            console.error(error);
+
+            res.status(500).json({ error: 'Internal Server Error' });
+        }
+    }
 }
 
 export default UserController;
