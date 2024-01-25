@@ -3,7 +3,7 @@ import { v4 as uuidv4 } from 'uuid';
 import User, { Status } from '../models/user.model';
 import bcrypt from 'bcrypt';
 import dotenv from 'dotenv';
-import { removeUserSessionTokens, signToken, verifyToken } from '../utils/auth';
+import { removeUserSessionTokens, removeUserTokensFromAllSessions, signToken, verifyToken } from '../utils/auth';
 
 dotenv.config();
 
@@ -112,7 +112,7 @@ class UserController {
     }
 
     static async refreshToken(req: Request, res: Response) {
-        console.log(req.query)
+        console.log(req.query);
 
         const isRefreshToken = req.query.isRefreshToken === 'true';
 
@@ -202,6 +202,8 @@ class UserController {
     }
 
     static async logout(req: Request, res: Response) {
+        const fromAllSessions = req.query.fromAllSessions === 'true';
+
         try {
             const accessToken = req.headers['authorization']?.split(' ')[1];
 
@@ -224,7 +226,12 @@ class UserController {
                 return res.status(401).json({ error: 'Invalid refresh token' });
             }
 
-            await removeUserSessionTokens(accessToken);
+            if (fromAllSessions) {
+                await removeUserTokensFromAllSessions(user.userName);
+            } else {
+                await removeUserSessionTokens(accessToken);
+            }
+
 
             res.json({ message: 'Logout successful' });
         } catch (error) {

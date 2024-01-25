@@ -82,3 +82,12 @@ export const removeUserSessionTokens = async (token: string): Promise<void> => {
         }
     });
 };
+
+export const removeUserTokensFromAllSessions = async (userName: string): Promise<void> => {
+    // Destroy all tokens for the user
+    await UserToken.destroy({
+        where: {
+            userName
+        }
+    });
+}
