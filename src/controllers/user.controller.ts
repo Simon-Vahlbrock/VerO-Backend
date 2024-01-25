@@ -1,10 +1,9 @@
 import { Request, Response } from 'express';
 import { v4 as uuidv4 } from 'uuid';
-import RefreshToken from '../models/refreshToken.model';
 import User, { Status } from '../models/user.model';
 import bcrypt from 'bcrypt';
-import jwt from 'jsonwebtoken';
 import dotenv from 'dotenv';
+import { removeUserSessionTokens, signToken, verifyToken } from '../utils/auth';
 
 dotenv.config();
 
@@ -85,31 +84,20 @@ class UserController {
                 return res.status(401).json({ error: 'Invalid username or password' });
             }
 
-            const refreshTokenId = uuidv4();
+            const userRefreshTokenId = uuidv4();
+            const userAccessTokenId = uuidv4();
 
-            // Save the refresh token ID to the new table
-            await RefreshToken.create({
+            const refreshToken = await signToken({
+                userTokenId: userRefreshTokenId,
                 userName,
-                refreshTokenId,
-            });
+                issuerTokenId: null
+            }, 'refresh');
 
-            // Generate a refresh token
-            const refreshToken = jwt.sign(
-                {
-                    userName,
-                    refreshTokenId,
-                },
-                process.env.JWT_REFRESH_SECRET!,
-                { expiresIn: '7d' }
-            );
-
-            await user.update({ refreshToken });
-
-
-            // Generate an access token
-            const accessToken = jwt.sign({
-                userName
-            }, process.env.JWT_SECRET!, { expiresIn: '15m' });
+            const accessToken = await signToken({
+                userTokenId: userAccessTokenId,
+                userName,
+                issuerTokenId: userRefreshTokenId
+            }, 'access');
 
             res.status(200).json({
                 message: 'Login successful',
@@ -123,59 +111,45 @@ class UserController {
         }
     }
 
-    static async refreshAccessToken(req: Request, res: Response) {
-        try {
-            const { refreshToken } = req.body;
+    static async refreshToken(req: Request, res: Response) {
+        console.log(req.query)
 
-            // Verify the refresh token
-            const decoded = jwt.verify(refreshToken, process.env.JWT_REFRESH_SECRET!) as {
-                userName: string,
-                refreshTokenId: string
-            };
+        const isRefreshToken = req.query.isRefreshToken === 'true';
 
-            // Find the user by username
-            const user = await User.findOne({ where: { userName: decoded.userName } });
+        const { refreshToken } = req.body;
 
-            // Find the refresh token by username and refresh token ID
-            const storedRefreshToken = await RefreshToken.findOne({
-                where: {
-                    userName: decoded.userName,
-                    refreshTokenId: decoded.refreshTokenId
-                }
-            });
+        // Check, if token is still valid
+        const decoded = await verifyToken(refreshToken);
 
-            if (!user || !storedRefreshToken || user.status === Status.Left) {
-                return res.status(401).json({ error: 'Invalid refresh token' });
-            }
-
-            const newRefreshTokenId = uuidv4();
-
-            // Remove refresh-token from the database
-            await storedRefreshToken.destroy();
-
-            // Add new refresh token to the database
-            await RefreshToken.create({
-                userName: decoded.userName,
-                refreshTokenId: newRefreshTokenId
-            });
-
-            // Issue a new refresh token
-            const newRefreshToken = jwt.sign({
-                userName: decoded.userName,
-                refreshTokenId: newRefreshTokenId
-            }, process.env.JWT_REFRESH_SECRET!, { expiresIn: '7d' });
-
-            // Issue a new access token
-            const newAccessToken = jwt.sign({
-                userName: decoded.userName
-            }, process.env.JWT_SECRET!, { expiresIn: '15m' });
-
-            res.json({ accessToken: newAccessToken, refreshToken: newRefreshToken });
-        } catch (error) {
-            console.error(error);
-
-            res.status(401).json({ error: 'Invalid refresh token' });
+        if (decoded === null) {
+            return res.status(401).json({ error: 'Invalid refresh token' });
         }
+
+        // Find the user by userName
+        const user = await User.findOne({ where: { userName: decoded.userName } });
+
+        if (!user) {
+            return res.status(401).json({ error: 'Invalid refresh token' });
+        }
+
+        if (isRefreshToken) {
+            await removeUserSessionTokens(refreshToken);
+        }
+
+        const userTokenId = uuidv4();
+
+        // Create a new token
+        const token = await signToken({
+            userTokenId,
+            userName: user.userName,
+            issuerTokenId: !isRefreshToken ? decoded.userTokenId : null
+        }, isRefreshToken ? 'refresh' : 'access');
+
+
+        res.status(200).json({
+            message: 'Token refreshed successfully',
+            [isRefreshToken ? 'refreshToken' : 'accessToken']: token
+        });
     }
 
     static async updatePassword(req: Request, res: Response) {
@@ -229,31 +203,28 @@ class UserController {
 
     static async logout(req: Request, res: Response) {
         try {
-            const { refreshToken } = req.body;
+            const accessToken = req.headers['authorization']?.split(' ')[1];
 
-            // Verify the refresh token
-            const decoded = jwt.verify(refreshToken, process.env.JWT_REFRESH_SECRET!) as {
-                userName: string,
-                refreshTokenId: string
-            };
+            if (!accessToken) {
+                return res.status(401).json({ error: 'Access token not found' });
+            }
+
+            // Verify the access token
+            const decoded = await verifyToken(accessToken);
+
+            if (decoded === null) {
+                return res.status(401).json({ error: 'Invalid access token' });
+            }
 
             // Find the user by username
             const user = await User.findOne({ where: { userName: decoded.userName } });
 
-            // Find the refresh token by username and refresh token ID
-            const storedRefreshToken = await RefreshToken.findOne({
-                where: {
-                    userName: decoded.userName,
-                    refreshTokenId: decoded.refreshTokenId
-                }
-            });
 
-            if (!user || !storedRefreshToken) {
+            if (!user) {
                 return res.status(401).json({ error: 'Invalid refresh token' });
             }
 
-            // Remove refresh token from the database
-            await storedRefreshToken.destroy();
+            await removeUserSessionTokens(accessToken);
 
             res.json({ message: 'Logout successful' });
         } catch (error) {

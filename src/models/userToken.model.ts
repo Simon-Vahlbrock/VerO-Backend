@@ -1,20 +1,21 @@
 import { DataTypes, Model } from 'sequelize';
 import sequelize from '../config/sequelize';
 
-class RefreshToken extends Model {
+class UserToken extends Model {
     public id!: number;
-    public refreshTokenId!: string;
+    public userTokenId!: string;
     public userName!: string;
+    public issuerTokenId!: string | null;
 }
 
-RefreshToken.init(
+UserToken.init(
     {
         id: {
             type: DataTypes.INTEGER,
             primaryKey: true,
             autoIncrement: true,
         },
-        refreshTokenId: {
+        userTokenId: {
             type: DataTypes.STRING,
             allowNull: false,
         },
@@ -22,12 +23,16 @@ RefreshToken.init(
             type: DataTypes.STRING(50),
             allowNull: false,
         },
+        issuerTokenId: {
+            type: DataTypes.STRING,
+            allowNull: true,
+        },
     },
     {
-        tableName: 'refresh_tokens',
+        tableName: 'user_tokens',
         sequelize,
         timestamps: false,
     }
 );
 
-export default RefreshToken;
+export default UserToken;

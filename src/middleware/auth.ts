@@ -1,6 +1,6 @@
 import { Request, Response, NextFunction } from 'express';
-import jwt from 'jsonwebtoken';
 import User, { Status } from '../models/user.model';
+import { verifyToken } from '../utils/auth';
 
 export const validateUser = async (req: Request, res: Response, next: NextFunction) => {
     const accessToken = req.headers['authorization']?.split(' ')[1];
@@ -9,21 +9,20 @@ export const validateUser = async (req: Request, res: Response, next: NextFuncti
         return res.status(401).json({ error: 'Access token not found' });
     }
 
-    try {
-        const decoded: any = jwt.verify(accessToken, process.env.JWT_SECRET!);
+    const decoded = await verifyToken(accessToken);
 
-        const user = await User.findOne({ where: { userName: decoded.userName } });
-
-        if (!user || user.status === Status.Left) {
-            return res.status(401).json({ error: 'Invalid access token' });
-        }
-
-        res.locals.user = user;
-
-        next();
-    } catch (error) {
-        console.error(error);
-
+    // if issuerTokenId is set, it is a refresh token
+    if (decoded === null || !decoded.issuerTokenId) {
         return res.status(401).json({ error: 'Invalid access token' });
     }
-}
+
+    const user = await User.findOne({ where: { userName: decoded.userName } });
+
+    if (!user || user.status === Status.Left) {
+        return res.status(401).json({ error: 'Invalid access token' });
+    }
+
+    res.locals.user = user;
+
+    next();
+};
