@@ -1,11 +1,13 @@
 import express from 'express';
 import bodyParser from 'body-parser';
+import cors from 'cors';
 import userRoutes from './routes/user.routes';
 import sequelize from './config/sequelize';
 
 const app = express();
 const PORT = process.env.PORT || 3000;
 
+app.use(cors());
 app.use(bodyParser.json());
 
 const apiRouter = express.Router();

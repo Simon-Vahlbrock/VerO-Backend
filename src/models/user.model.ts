@@ -29,8 +29,6 @@ export enum Role {
 
 class User extends Model {
     public userName!: string;
-    public password!: string;
-    public salt!: string;
     public firstName!: string;
     public lastName!: string;
     public address!: string;
@@ -49,14 +47,6 @@ User.init(
         userName: {
             type: DataTypes.STRING(50),
             primaryKey: true,
-            allowNull: false,
-        },
-        password: {
-            type: DataTypes.STRING,
-            allowNull: false,
-        },
-        salt: {
-            type: DataTypes.STRING,
             allowNull: false,
         },
         firstName: {

@@ -4,6 +4,7 @@ import User, { Status } from '../models/user.model';
 import bcrypt from 'bcrypt';
 import dotenv from 'dotenv';
 import { removeUserSessionTokens, removeUserTokensFromAllSessions, signToken, verifyToken } from '../utils/auth';
+import Password from '../models/password.model';
 
 dotenv.config();
 
@@ -41,8 +42,6 @@ class UserController {
             // Create the user
             await User.create({
                 userName,
-                password: hashedPassword,
-                salt,
                 firstName,
                 lastName,
                 address,
@@ -55,6 +54,13 @@ class UserController {
                 gender,
                 role
             });
+
+            await Password.create({
+                password: hashedPassword,
+                salt,
+                userName
+            });
+
 
             res.status(201).json({
                 message: 'User registered successfully',
@@ -72,13 +78,14 @@ class UserController {
 
             // Find the user by username
             const user = await User.findOne({ where: { userName } });
+            const dbPassword = await Password.findOne({ where: { userName } });
 
-            if (!user || user.status === Status.Left) {
+            if (!user || user.status === Status.Left || !dbPassword) {
                 return res.status(401).json({ error: 'Invalid username or password' });
             }
 
             // Verify the password
-            const isPasswordValid = await bcrypt.compare(password, user.password);
+            const isPasswordValid = await bcrypt.compare(password, dbPassword.password);
 
             if (!isPasswordValid) {
                 return res.status(401).json({ error: 'Invalid username or password' });
@@ -112,8 +119,6 @@ class UserController {
     }
 
     static async refreshToken(req: Request, res: Response) {
-        console.log(req.query);
-
         const isRefreshToken = req.query.isRefreshToken === 'true';
 
         const { refreshToken } = req.body;
@@ -162,14 +167,19 @@ class UserController {
                     userName
                 },
             });
+            const dbPassword = await Password.findOne({
+                where: {
+                    userName
+                },
+            });
 
             // Check if the user exists
-            if (!user) {
+            if (!user || !dbPassword) {
                 return res.status(401).json({ message: 'Invalid username and password' });
             }
 
             // Check if the current password is correct
-            const isPasswordValid = await bcrypt.compare(currentPassword, user.password);
+            const isPasswordValid = await bcrypt.compare(currentPassword, dbPassword.password);
 
             if (!isPasswordValid) {
                 return res.status(401).json({ message: 'Invalid username and password' });
@@ -180,18 +190,14 @@ class UserController {
             const salt = await bcrypt.genSalt(saltRounds);
             const newHashedPassword = await bcrypt.hash(newPassword, salt);
 
-            // Update user's password and salt
-            await User.update(
-                {
-                    password: newHashedPassword,
-                    salt,
-                },
-                {
-                    where: {
-                        userName
-                    },
+            await Password.update({
+                password: newHashedPassword,
+                salt,
+            }, {
+                where: {
+                    userName
                 }
-            );
+            });
 
             res.status(200).json({ message: 'Password updated successfully' });
         } catch (error) {
@@ -257,6 +263,46 @@ class UserController {
 
             res.status(500).json({ error: 'Internal Server Error' });
         }
+    }
+
+    static async getUser(req: Request, res: Response) {
+        const user = res.locals.user;
+
+        res.json(user);
+    }
+
+    static async updateUser(req: Request, res: Response) {
+        const {
+            firstName,
+            lastName,
+            address,
+            city,
+            zipCode,
+            email,
+            phoneNumber,
+            gender,
+            role,
+            status
+        } = req.body;
+
+        await User.update({
+            firstName,
+            lastName,
+            address,
+            city,
+            zipCode,
+            email,
+            phoneNumber,
+            gender,
+            role,
+            status
+        }, {
+            where: {
+                userName: res.locals.user.userName
+            }
+        });
+
+        res.json({ message: 'User updated successfully' });
     }
 }
 
