@@ -1,10 +1,12 @@
 import { Request, Response } from 'express';
 import { v4 as uuidv4 } from 'uuid';
-import User, { Status } from '../models/user.model';
+import User from '../models/user.model';
 import bcrypt from 'bcrypt';
 import dotenv from 'dotenv';
 import { removeUserSessionTokens, removeUserTokensFromAllSessions, signToken, verifyToken } from '../utils/auth';
 import Password from '../models/password.model';
+import { Status } from '../types/user';
+import { getIsAdmin, getUserRoles } from '../utils/user';
 
 dotenv.config();
 
@@ -23,8 +25,7 @@ class UserController {
                 phoneNumber,
                 birthDate,
                 status,
-                gender,
-                role
+                gender
             } = req.body;
 
             // Check if the username already exists
@@ -51,8 +52,7 @@ class UserController {
                 phoneNumber,
                 birthDate,
                 status,
-                gender,
-                role
+                gender
             });
 
             await Password.create({
@@ -91,6 +91,8 @@ class UserController {
                 return res.status(401).json({ error: 'Invalid username or password' });
             }
 
+            const isAdmin = await getIsAdmin(user.userName);
+
             const userRefreshTokenId = uuidv4();
             const userAccessTokenId = uuidv4();
 
@@ -103,7 +105,8 @@ class UserController {
             const accessToken = await signToken({
                 userTokenId: userAccessTokenId,
                 userName,
-                issuerTokenId: userRefreshTokenId
+                issuerTokenId: userRefreshTokenId,
+                isAdmin
             }, 'access');
 
             res.status(200).json({
@@ -141,13 +144,16 @@ class UserController {
             await removeUserSessionTokens(refreshToken);
         }
 
+        const isAdmin = await getIsAdmin(user.userName);
+
         const userTokenId = uuidv4();
 
         // Create a new token
         const token = await signToken({
             userTokenId,
             userName: user.userName,
-            issuerTokenId: !isRefreshToken ? decoded.userTokenId : null
+            issuerTokenId: !isRefreshToken ? decoded.userTokenId : null,
+            isAdmin
         }, isRefreshToken ? 'refresh' : 'access');
 
 
@@ -250,14 +256,14 @@ class UserController {
         try {
             const users = await User.findAll();
 
-            // filter out the password and salt
-            const filteredUsers = users.map(user => {
-                const { password, salt, ...rest } = user.toJSON();
+            const userToRoles = await Promise.all(users.map(async (user) => {
+                const roles = await getUserRoles(user.userName);
 
-                return rest;
-            });
+                return { ...user, roles };
+            }));
 
-            res.json(filteredUsers);
+
+            res.json(userToRoles);
         } catch (error) {
             console.error(error);
 
@@ -268,7 +274,9 @@ class UserController {
     static async getUser(req: Request, res: Response) {
         const user = res.locals.user;
 
-        res.json(user);
+        const userRoles = await getUserRoles(user.userName);
+
+        res.json({ ...user, roles: userRoles });
     }
 
     static async updateUser(req: Request, res: Response) {
@@ -284,7 +292,6 @@ class UserController {
             email,
             phoneNumber,
             gender,
-            role,
             status,
             birthDate
         } = req.body;
@@ -299,7 +306,6 @@ class UserController {
             email,
             phoneNumber,
             gender,
-            role,
             status,
             birthDate
         }, {

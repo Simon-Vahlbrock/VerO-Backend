@@ -1,6 +1,8 @@
 import { Request, Response, NextFunction } from 'express';
-import User, { Status } from '../models/user.model';
+import User from '../models/user.model';
 import { verifyToken } from '../utils/auth';
+import { Status } from '../types/user';
+import { getIsAdmin } from '../utils/user';
 
 export const validateUser = async (req: Request, res: Response, next: NextFunction) => {
     const accessToken = req.headers['authorization']?.split(' ')[1];
@@ -22,7 +24,10 @@ export const validateUser = async (req: Request, res: Response, next: NextFuncti
         return res.status(401).json({ error: 'Invalid access token' });
     }
 
+    const isAdmin = await getIsAdmin(user.userName);
+
     res.locals.user = user;
+    res.locals.isAdmin = isAdmin;
 
     next();
 };

@@ -1,18 +1,19 @@
 import { NextFunction, Request, Response } from 'express';
-import { Role } from '../models/user.model';
 
 export const validateBody = (req: Request, res: Response, next: NextFunction) => {
     const { userName } = req.params;
+
     const senderUser = res.locals.user;
+    const isAdmin = res.locals.isAdmin;
 
     // Define validation rules based on user role
     let baseValidationRules = ['firstName', 'lastName', 'address', 'city', 'zipCode', 'email', 'phoneNumber', 'gender'];
-    const adminValidationRules = ['userName', 'birthDate', 'status', 'role'];
+    const adminValidationRules = ['userName', 'birthDate', 'status'];
 
     let userNameToUpdate;
 
     // Add admin validation rules if the user is an admin
-    if (senderUser.role === Role.ExecutiveBoardMember) {
+    if (isAdmin) {
         baseValidationRules = [...baseValidationRules, ...adminValidationRules];
 
         // Admin can update any user

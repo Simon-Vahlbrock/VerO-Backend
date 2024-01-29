@@ -10,14 +10,18 @@ export interface TokenPayload {
     userTokenId: string;
     userName: string;
     issuerTokenId: string | null;
+    isAdmin?: boolean;
 }
 
 export const signToken = async (payload: TokenPayload, tokenType: 'access' | 'refresh'): Promise<string> => {
+    const { userTokenId, userName, issuerTokenId, isAdmin } = payload;
     const expiresIn = tokenType === 'access' ? '1h' : '90d';
 
-    const token = jwt.sign(payload, privateKEY, { algorithm: 'RS256', expiresIn });
+    const token = jwt.sign({
+        userTokenId, userName, issuerTokenId, isAdmin
+    }, privateKEY, { algorithm: 'RS256', expiresIn });
 
-    await UserToken.create({ ...payload });
+    await UserToken.create({ userTokenId, userName, issuerTokenId });
 
     return token;
 };
@@ -90,4 +94,4 @@ export const removeUserTokensFromAllSessions = async (userName: string): Promise
             userName
         }
     });
-}
+};

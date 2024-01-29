@@ -1,31 +1,6 @@
 import { DataTypes, Model } from 'sequelize';
 import sequelize from '../config/sequelize';
-
-export enum Status {
-    // Full paying member
-    Aktiv = 1,
-    // Discounted paying member
-    Passiv = 2,
-    // Not paying member
-    Special = 3,
-    // Not in organisation anymore
-    Left = 4,
-}
-
-export enum Gender {
-    Male = 1,
-    Female = 2,
-    Diverse = 3,
-}
-
-export enum Role {
-    // Mitglied
-    Member = 1,
-    // Mitglied Vorstand
-    BoardMember = 2,
-    // Mitglied Geschäftsführer Vorstand
-    ExecutiveBoardMember = 3,
-}
+import { Gender, Status } from 'types/user';
 
 class User extends Model {
     public userName!: string;
@@ -39,7 +14,6 @@ class User extends Model {
     public birthDate!: string;
     public status!: Status;
     public gender!: Gender;
-    public role!: Role;
 }
 
 User.init(
@@ -88,11 +62,7 @@ User.init(
         gender: {
             type: DataTypes.INTEGER,
             allowNull: false,
-        },
-        role: {
-            type: DataTypes.INTEGER,
-            allowNull: false,
-        },
+        }
     },
     {
         tableName: 'users',
