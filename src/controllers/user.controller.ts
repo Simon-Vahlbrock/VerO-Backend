@@ -272,7 +272,10 @@ class UserController {
     }
 
     static async updateUser(req: Request, res: Response) {
+        const userNameToUpdate = res.locals.userNameToUpdate;
+
         const {
+            userName,
             firstName,
             lastName,
             address,
@@ -282,10 +285,12 @@ class UserController {
             phoneNumber,
             gender,
             role,
-            status
+            status,
+            birthDate
         } = req.body;
 
         await User.update({
+            userName,
             firstName,
             lastName,
             address,
@@ -295,10 +300,11 @@ class UserController {
             phoneNumber,
             gender,
             role,
-            status
+            status,
+            birthDate
         }, {
             where: {
-                userName: res.locals.user.userName
+                userName: userNameToUpdate
             }
         });
 
